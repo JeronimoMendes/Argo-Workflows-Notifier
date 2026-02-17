@@ -59,3 +59,7 @@ Build extension package:
 ```bash
 npm run package:extension
 ```
+
+## Disclaimer
+
+This project was "vibe coded" using tools such as OpenAI Codex and Claude Code.
