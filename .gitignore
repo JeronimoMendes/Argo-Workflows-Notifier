@@ -1,1 +1,3 @@
 node_modules/
+dist/
+.crx-key.pem

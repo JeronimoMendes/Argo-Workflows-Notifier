@@ -53,3 +53,9 @@ Format code:
 ```bash
 npm run format
 ```
+
+Build extension package:
+
+```bash
+npm run package:extension
+```
