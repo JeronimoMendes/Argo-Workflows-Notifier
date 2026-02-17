@@ -105,10 +105,7 @@ test("extractPhaseFromDocument reads workflow phase from argo graph root node", 
     }
   };
 
-  assert.equal(
-    shared.extractPhaseFromDocument(fakeDoc, { workflowName }),
-    "running"
-  );
+  assert.equal(shared.extractPhaseFromDocument(fakeDoc, { workflowName }), "running");
 });
 
 test("extractPhaseFromDocument prefers graph root phase over generic status badges", () => {
@@ -139,8 +136,5 @@ test("extractPhaseFromDocument prefers graph root phase over generic status badg
     body: { innerText: "" }
   };
 
-  assert.equal(
-    shared.extractPhaseFromDocument(fakeDoc, { workflowName }),
-    "succeeded"
-  );
+  assert.equal(shared.extractPhaseFromDocument(fakeDoc, { workflowName }), "succeeded");
 });

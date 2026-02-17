@@ -20,7 +20,9 @@ const TERMINAL_SUCCESS = new Set(["succeeded"]);
 const TERMINAL_FAILURE = new Set(["failed", "error"]);
 
 function cleanText(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizePhase(value) {
@@ -184,8 +186,7 @@ async function pruneInvalidWatches() {
 
 async function createNotification(title, message) {
   const iconUrl = chrome.runtime.getURL("icons/icon128.png");
-  const notificationId =
-    "argo-watch-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+  const notificationId = "argo-watch-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
 
   return new Promise((resolve, reject) => {
     chrome.notifications.create(
@@ -208,10 +209,7 @@ async function createNotification(title, message) {
 }
 
 async function sendWorkflowNotification(watch, outcome) {
-  const title =
-    outcome === "success"
-      ? "Argo workflow succeeded 🟢"
-      : "Argo workflow failed 🔴";
+  const title = outcome === "success" ? "Argo workflow succeeded 🟢" : "Argo workflow failed 🔴";
   const message =
     outcome === "success"
       ? watch.displayName + " finished successfully."
@@ -225,8 +223,7 @@ async function applyObservationToWatch(watchId, watch, phase, observedAt) {
 
   if (evaluation.isTerminal) {
     const alreadyNotified =
-      Boolean(watch.terminalNotified) &&
-      watch.lastNotifiedOutcome === evaluation.outcome;
+      Boolean(watch.terminalNotified) && watch.lastNotifiedOutcome === evaluation.outcome;
 
     if (evaluation.shouldNotify) {
       if (!alreadyNotified) {
@@ -419,10 +416,7 @@ async function renameWatch(payload) {
 async function applyPushedStatus(message, sender) {
   await ensureHydrated();
 
-  const tabId =
-    sender && sender.tab && typeof sender.tab.id === "number"
-      ? sender.tab.id
-      : null;
+  const tabId = sender && sender.tab && typeof sender.tab.id === "number" ? sender.tab.id : null;
   if (typeof tabId !== "number") {
     return { ok: true, ignored: true, reason: "missing_tab" };
   }

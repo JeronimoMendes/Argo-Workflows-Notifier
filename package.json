@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint --max-warnings=0 \"src/**/*.js\" \"test/**/*.js\"",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write \"**/*.{js,cjs,css,html,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,css,html,json,md}\""
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "prettier": "^3.5.3"
   }
 }

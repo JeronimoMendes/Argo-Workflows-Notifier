@@ -223,10 +223,7 @@ async function renameWatchWithPrompt(watch) {
   if (!watch || !watch.watchId) {
     return;
   }
-  const nextName = prompt(
-    "Rename watched workflow",
-    watch.displayName || watch.workflowKey
-  );
+  const nextName = prompt("Rename watched workflow", watch.displayName || watch.workflowKey);
   if (nextName === null) {
     return;
   }
@@ -312,7 +309,14 @@ if (workflowNameEl) {
 }
 
 async function init() {
-  if (!pageStateEl || !workflowNameEl || !workflowNameLabelEl || !toggleWatchBtn || !watchListEl || !emptyStateEl) {
+  if (
+    !pageStateEl ||
+    !workflowNameEl ||
+    !workflowNameLabelEl ||
+    !toggleWatchBtn ||
+    !watchListEl ||
+    !emptyStateEl
+  ) {
     return;
   }
   await initActiveTabContext();

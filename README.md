@@ -41,3 +41,15 @@ Run tests:
 ```bash
 npm test
 ```
+
+Run lint:
+
+```bash
+npm run lint
+```
+
+Format code:
+
+```bash
+npm run format
+```

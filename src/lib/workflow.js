@@ -36,7 +36,9 @@
   ];
 
   function cleanText(value) {
-    return String(value || "").trim().toLowerCase();
+    return String(value || "")
+      .trim()
+      .toLowerCase();
   }
 
   function normalizePhase(value) {
@@ -235,7 +237,7 @@
     }
 
     const statusLineMatch = bodyText.match(
-      /(?:^|\n)\s*status\s*[:\-]\s*([A-Za-z_ ]{3,32})(?:\n|$)/i
+      /(?:^|\n)\s*status\s*[:-]\s*([A-Za-z_ ]{3,32})(?:\n|$)/i
     );
     if (statusLineMatch && statusLineMatch[1]) {
       return normalizePhase(statusLineMatch[1]);
