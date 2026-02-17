@@ -55,6 +55,73 @@ function getStatusPayload() {
   };
 }
 
+let lastPushedWorkflowKey = "";
+let lastPushedPhase = "";
+let pendingPushTimer = 0;
+
+function queueStatusPush(delayMs) {
+  if (pendingPushTimer) {
+    clearTimeout(pendingPushTimer);
+  }
+  pendingPushTimer = window.setTimeout(() => {
+    pendingPushTimer = 0;
+    pushStatusToBackground(false);
+  }, delayMs);
+}
+
+function pushStatusToBackground(force) {
+  const status = getStatusPayload();
+  if (!status.ok) {
+    return;
+  }
+  if (!force && status.workflowKey === lastPushedWorkflowKey && status.phase === lastPushedPhase) {
+    return;
+  }
+  lastPushedWorkflowKey = status.workflowKey;
+  lastPushedPhase = status.phase;
+
+  chrome.runtime.sendMessage(
+    {
+      type: "WORKFLOW_STATUS_PUSH",
+      workflowKey: status.workflowKey,
+      phase: status.phase,
+      observedAt: status.observedAt
+    },
+    () => {
+      void chrome.runtime.lastError;
+    }
+  );
+}
+
+function initStatusPushLoop() {
+  const parsed = shared.parseWorkflowFromUrl(window.location.href);
+  if (!parsed) {
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    queueStatusPush(500);
+  });
+  if (document.body) {
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true
+    });
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      queueStatusPush(150);
+    }
+  });
+  window.addEventListener("focus", () => queueStatusPush(150));
+  window.setInterval(() => pushStatusToBackground(false), 5000);
+
+  pushStatusToBackground(true);
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || !message.type) {
     return false;
@@ -72,3 +139,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return false;
 });
+
+initStatusPushLoop();

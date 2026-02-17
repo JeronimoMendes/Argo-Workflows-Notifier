@@ -54,6 +54,15 @@ body {
   white-space: nowrap;
 }
 
+.workflow-name-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  flex: 1;
+}
+
 .workflow-name-primary:not([disabled]) {
   cursor: pointer;
 }
@@ -154,6 +163,9 @@ button[disabled] {
 .watch-meta {
   font-size: 11px;
   color: #4c5b74;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stop-btn {

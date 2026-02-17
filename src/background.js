@@ -96,7 +96,6 @@ function buildWatchId(tabId, workflowKey) {
 
 const ALARM_NAME = "argo-workflow-notifier-poll";
 const ALARM_PERIOD_MINUTES = 0.5;
-const MAX_MISSES = 3;
 
 let watches = new Map();
 let hydrated = false;
@@ -169,7 +168,7 @@ async function pruneInvalidWatches() {
   for (const [watchId, watch] of watches.entries()) {
     try {
       const tab = await chrome.tabs.get(watch.tabId);
-      if (!tab || !isWorkflowRunUrl(tab.url || "")) {
+      if (!tab) {
         watches.delete(watchId);
         changed = true;
       }
@@ -183,6 +182,31 @@ async function pruneInvalidWatches() {
   }
 }
 
+async function createNotification(title, message) {
+  const iconUrl = chrome.runtime.getURL("icons/icon128.png");
+  const notificationId =
+    "argo-watch-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+
+  return new Promise((resolve, reject) => {
+    chrome.notifications.create(
+      notificationId,
+      {
+        type: "basic",
+        iconUrl,
+        title,
+        message
+      },
+      (createdId) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(createdId || notificationId);
+      }
+    );
+  });
+}
+
 async function sendWorkflowNotification(watch, outcome) {
   const title =
     outcome === "success"
@@ -192,63 +216,91 @@ async function sendWorkflowNotification(watch, outcome) {
     outcome === "success"
       ? watch.displayName + " finished successfully."
       : watch.displayName + " finished with errors.";
+  await createNotification(title, message);
+}
 
-  await chrome.notifications.create("argo-watch-" + watch.watchId, {
-    type: "basic",
-    iconUrl: "icons/icon128.png",
-    title,
-    message
+async function applyObservationToWatch(watchId, watch, phase, observedAt) {
+  const evaluation = evaluateWatchObservation(watch, phase, observedAt || Date.now());
+  const nextWatch = { ...evaluation.nextWatch, missCount: 0 };
+
+  if (evaluation.isTerminal) {
+    const alreadyNotified =
+      Boolean(watch.terminalNotified) &&
+      watch.lastNotifiedOutcome === evaluation.outcome;
+
+    if (evaluation.shouldNotify) {
+      if (!alreadyNotified) {
+        try {
+          await sendWorkflowNotification(nextWatch, evaluation.outcome);
+        } catch (_error) {
+          // Keep watch state deterministic even if OS/browser suppresses notifications.
+        }
+      }
+    }
+
+    watches.set(watchId, {
+      ...nextWatch,
+      terminalNotified: true,
+      lastNotifiedOutcome: evaluation.outcome
+    });
+    return true;
+  }
+
+  watches.set(watchId, {
+    ...nextWatch,
+    terminalNotified: false,
+    lastNotifiedOutcome: null
   });
+  return true;
 }
 
 async function checkOneWatch(watchId, watch) {
   try {
     const tab = await chrome.tabs.get(watch.tabId);
-    if (!tab || !isWorkflowRunUrl(tab.url || "")) {
+    if (!tab) {
       watches.delete(watchId);
+      return true;
+    }
+    if (!isWorkflowRunUrl(tab.url || "")) {
+      watches.set(watchId, {
+        ...watch,
+        lastCheckedAt: Date.now(),
+        missCount: (watch.missCount || 0) + 1
+      });
       return true;
     }
 
     const response = await chrome.tabs.sendMessage(watch.tabId, { type: "GET_WORKFLOW_STATUS" });
     if (!response || !response.workflowKey || !response.phase) {
-      const missCount = (watch.missCount || 0) + 1;
-      if (missCount >= MAX_MISSES) {
-        watches.delete(watchId);
-      } else {
-        watches.set(watchId, { ...watch, missCount });
-      }
+      watches.set(watchId, {
+        ...watch,
+        lastCheckedAt: Date.now(),
+        missCount: (watch.missCount || 0) + 1
+      });
       return true;
     }
 
     if (response.workflowKey !== watch.workflowKey) {
-      watches.delete(watchId);
+      watches.set(watchId, {
+        ...watch,
+        lastCheckedAt: Date.now(),
+        missCount: (watch.missCount || 0) + 1
+      });
       return true;
     }
 
-    const evaluation = evaluateWatchObservation(
+    return applyObservationToWatch(
+      watchId,
       watch,
       response.phase,
       response.observedAt || Date.now()
     );
-    const nextWatch = { ...evaluation.nextWatch, missCount: 0 };
-
-    if (evaluation.isTerminal) {
-      if (evaluation.shouldNotify) {
-        await sendWorkflowNotification(nextWatch, evaluation.outcome);
-      }
-      watches.delete(watchId);
-      return true;
-    }
-
-    watches.set(watchId, nextWatch);
-    return true;
   } catch (_error) {
-    const missCount = (watch.missCount || 0) + 1;
-    if (missCount >= MAX_MISSES) {
-      watches.delete(watchId);
-    } else {
-      watches.set(watchId, { ...watch, missCount });
-    }
+    watches.set(watchId, {
+      ...watch,
+      lastCheckedAt: Date.now(),
+      missCount: (watch.missCount || 0) + 1
+    });
     return true;
   }
 }
@@ -262,11 +314,8 @@ async function pollWatches() {
 
   let changed = false;
   for (const [watchId, watch] of Array.from(watches.entries())) {
-    const before = JSON.stringify(watches.get(watchId));
-    await checkOneWatch(watchId, watch);
-    const afterWatch = watches.get(watchId);
-    const after = afterWatch ? JSON.stringify(afterWatch) : "";
-    if (before !== after) {
+    const didChange = await checkOneWatch(watchId, watch);
+    if (didChange) {
       changed = true;
     }
   }
@@ -292,6 +341,15 @@ async function getWatchForTab(tabId) {
   return null;
 }
 
+function findWatchByTabAndWorkflowKey(tabId, workflowKey) {
+  for (const watch of watches.values()) {
+    if (watch.tabId === tabId && watch.workflowKey === workflowKey) {
+      return watch;
+    }
+  }
+  return null;
+}
+
 async function enableWatch(payload) {
   await ensureHydrated();
   const watchId = buildWatchId(payload.tabId, payload.workflowKey);
@@ -307,7 +365,9 @@ async function enableWatch(payload) {
     createdAt: now,
     lastPhase: "unknown",
     lastCheckedAt: 0,
-    missCount: 0
+    missCount: 0,
+    terminalNotified: false,
+    lastNotifiedOutcome: null
   };
 
   watches.set(watchId, watch);
@@ -356,6 +416,45 @@ async function renameWatch(payload) {
   return nextWatch;
 }
 
+async function applyPushedStatus(message, sender) {
+  await ensureHydrated();
+
+  const tabId =
+    sender && sender.tab && typeof sender.tab.id === "number"
+      ? sender.tab.id
+      : null;
+  if (typeof tabId !== "number") {
+    return { ok: true, ignored: true, reason: "missing_tab" };
+  }
+
+  const workflowKey = String(message.workflowKey || "");
+  if (!workflowKey) {
+    return { ok: true, ignored: true, reason: "missing_workflow_key" };
+  }
+  const phase = String(message.phase || "");
+  if (!phase) {
+    return { ok: true, ignored: true, reason: "missing_phase" };
+  }
+
+  const watch = findWatchByTabAndWorkflowKey(tabId, workflowKey);
+  if (!watch) {
+    return { ok: true, ignored: true, reason: "watch_not_found" };
+  }
+
+  const changed = await applyObservationToWatch(
+    watch.watchId,
+    watch,
+    phase,
+    message.observedAt || Date.now()
+  );
+  if (changed) {
+    await persistWatches();
+    await syncAlarm();
+  }
+
+  return { ok: true, changed };
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   hydrateWatches().catch(() => {});
 });
@@ -378,15 +477,20 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!watchForTabExists(tabId)) {
     return;
   }
-  const nextUrl = changeInfo.url || (tab && tab.url) || "";
-  if (nextUrl && !isWorkflowRunUrl(nextUrl)) {
-    removeWatchesForTab(tabId).catch(() => {});
-  }
+  void changeInfo;
+  void tab;
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || !message.type) {
     return false;
+  }
+
+  if (message.type === "WORKFLOW_STATUS_PUSH") {
+    applyPushedStatus(message, _sender)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
   }
 
   if (message.type === "WATCH_LIST") {

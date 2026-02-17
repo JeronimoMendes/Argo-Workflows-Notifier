@@ -250,6 +250,11 @@
     }
     const workflowName = options && options.workflowName ? options.workflowName : "";
 
+    const graphPhase = extractPhaseFromArgoGraph(doc, workflowName);
+    if (graphPhase !== "unknown") {
+      return graphPhase;
+    }
+
     for (const selector of STATUS_SELECTORS) {
       const nodes = queryAll(doc, selector);
       for (const node of nodes) {
@@ -258,11 +263,6 @@
           return phase;
         }
       }
-    }
-
-    const graphPhase = extractPhaseFromArgoGraph(doc, workflowName);
-    if (graphPhase !== "unknown") {
-      return graphPhase;
     }
 
     return extractStatusFromBodyText(doc);

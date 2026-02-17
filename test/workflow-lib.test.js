@@ -110,3 +110,37 @@ test("extractPhaseFromDocument reads workflow phase from argo graph root node", 
     "running"
   );
 });
+
+test("extractPhaseFromDocument prefers graph root phase over generic status badges", () => {
+  const workflowName = "train-v0.0.1-8sz46";
+
+  const makeTitleNode = (titleText, className) => ({
+    textContent: titleText,
+    parentElement: {
+      querySelector(selector) {
+        if (selector === "g.node" || selector === ".node") {
+          return { className: { baseVal: className } };
+        }
+        return null;
+      }
+    }
+  });
+
+  const fakeDoc = {
+    querySelectorAll(selector) {
+      if (selector === ".graph svg title") {
+        return [makeTitleNode(workflowName + " (" + workflowName + ")", "node Succeeded ")];
+      }
+      if (selector === ".status-badge .status") {
+        return [{ textContent: "Running" }];
+      }
+      return [];
+    },
+    body: { innerText: "" }
+  };
+
+  assert.equal(
+    shared.extractPhaseFromDocument(fakeDoc, { workflowName }),
+    "succeeded"
+  );
+});

@@ -14,6 +14,17 @@ let activeTab = null;
 let activeContext = null;
 let currentWatch = null;
 let watchIndex = new Map();
+const MAX_TITLE_LEN = 56;
+const MAX_WATCH_NAME_LEN = 42;
+const MAX_WATCH_META_LEN = 60;
+
+function truncateWithEllipsis(value, maxLength) {
+  const text = String(value || "");
+  if (!maxLength || text.length <= maxLength) {
+    return text;
+  }
+  return text.slice(0, Math.max(0, maxLength - 3)) + "...";
+}
 
 async function runtimeMessage(message) {
   try {
@@ -56,25 +67,35 @@ async function ensureContentScriptInjected(tab) {
 }
 
 function setWorkflowControls(enabled, buttonText) {
+  if (!toggleWatchBtn) {
+    return;
+  }
   toggleWatchBtn.disabled = !enabled;
   toggleWatchBtn.textContent = buttonText;
 }
 
 function setWorkflowTitle(title, isRenameEnabled) {
-  workflowNameLabelEl.textContent = title || "No workflow selected";
+  if (!workflowNameLabelEl || !workflowNameEl) {
+    return;
+  }
+  const fullTitle = title || "No workflow selected";
+  workflowNameLabelEl.textContent = truncateWithEllipsis(fullTitle, MAX_TITLE_LEN);
   workflowNameEl.disabled = !isRenameEnabled;
   workflowNameEl.classList.toggle("rename-enabled", isRenameEnabled);
   workflowNameEl.title = isRenameEnabled
-    ? "Click to rename this watched workflow"
-    : "";
+    ? fullTitle + " (click to rename this watched workflow)"
+    : fullTitle;
 }
 
 function formatWatchMeta(watch) {
   const phase = watch.lastPhase && watch.lastPhase !== "unknown" ? watch.lastPhase : "waiting";
-  return watch.workflowKey + " | last: " + phase;
+  return truncateWithEllipsis(watch.workflowKey + " | last: " + phase, MAX_WATCH_META_LEN);
 }
 
 function renderWatchList(watches) {
+  if (!watchListEl || !emptyStateEl) {
+    return;
+  }
   watchListEl.innerHTML = "";
   if (!watches || watches.length === 0) {
     emptyStateEl.style.display = "block";
@@ -92,8 +113,8 @@ function renderWatchList(watches) {
     const name = document.createElement("button");
     name.type = "button";
     name.className = "watch-name-btn";
-    name.textContent = watch.displayName;
-    name.title = "Open workflow tab";
+    name.textContent = truncateWithEllipsis(watch.displayName, MAX_WATCH_NAME_LEN);
+    name.title = watch.displayName + " (open workflow tab)";
     name.dataset.watchId = watch.watchId;
 
     const stopBtn = document.createElement("button");
@@ -128,6 +149,9 @@ async function refreshWatches() {
 }
 
 async function initActiveTabContext() {
+  if (!pageStateEl) {
+    return;
+  }
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTab = tabs && tabs[0] ? tabs[0] : null;
   if (!activeTab) {
@@ -217,71 +241,88 @@ async function renameWatchWithPrompt(watch) {
     displayName: trimmed
   });
   if (!result || !result.ok || !result.watch) {
-    pageStateEl.textContent = "Rename failed. Refresh extension and try again.";
+    if (pageStateEl) {
+      pageStateEl.textContent = "Rename failed. Refresh extension and try again.";
+    }
     return;
   }
 
-  pageStateEl.textContent = "Workflow page detected.";
+  if (pageStateEl) {
+    pageStateEl.textContent = "Workflow page detected.";
+  }
   await refreshCurrentWatchState();
 }
 
-watchListEl.addEventListener("click", async (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) {
-    return;
-  }
+if (watchListEl) {
+  watchListEl.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
 
-  if (target.classList.contains("stop-btn")) {
-    const watchId = target.dataset.watchId;
-    if (!watchId) {
-      return;
-    }
-    await runtimeMessage({ type: "WATCH_DISABLE", watchId });
-    await refreshCurrentWatchState();
-    return;
-  }
-
-  if (target.classList.contains("watch-name-btn")) {
-    const watchId = target.dataset.watchId;
-    if (!watchId) {
-      return;
-    }
-    const watch = watchIndex.get(watchId);
-    if (!watch) {
-      return;
-    }
-    try {
-      const tab = await chrome.tabs.update(watch.tabId, { active: true });
-      if (tab && typeof tab.windowId === "number") {
-        await chrome.windows.update(tab.windowId, { focused: true });
+    if (target.classList.contains("stop-btn")) {
+      const watchId = target.dataset.watchId;
+      if (!watchId) {
+        return;
       }
-      window.close();
-    } catch (_error) {
-      pageStateEl.textContent = "Could not open workflow tab.";
+      await runtimeMessage({ type: "WATCH_DISABLE", watchId });
+      await refreshCurrentWatchState();
+      return;
     }
-  }
-});
 
-toggleWatchBtn.addEventListener("click", () => {
-  toggleWatch().catch(() => {
-    toggleWatchBtn.disabled = false;
+    if (target.classList.contains("watch-name-btn")) {
+      const watchId = target.dataset.watchId;
+      if (!watchId) {
+        return;
+      }
+      const watch = watchIndex.get(watchId);
+      if (!watch) {
+        return;
+      }
+      try {
+        const tab = await chrome.tabs.update(watch.tabId, { active: true });
+        if (tab && typeof tab.windowId === "number") {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+        window.close();
+      } catch (_error) {
+        if (pageStateEl) {
+          pageStateEl.textContent = "Could not open workflow tab.";
+        }
+      }
+    }
   });
-});
+}
 
-workflowNameEl.addEventListener("click", async () => {
-  if (!currentWatch) {
-    return;
-  }
-  await renameWatchWithPrompt(currentWatch);
-});
+if (toggleWatchBtn) {
+  toggleWatchBtn.addEventListener("click", () => {
+    toggleWatch().catch(() => {
+      toggleWatchBtn.disabled = false;
+    });
+  });
+}
+
+if (workflowNameEl) {
+  workflowNameEl.addEventListener("click", async () => {
+    if (!currentWatch) {
+      return;
+    }
+    await renameWatchWithPrompt(currentWatch);
+  });
+}
 
 async function init() {
+  if (!pageStateEl || !workflowNameEl || !workflowNameLabelEl || !toggleWatchBtn || !watchListEl || !emptyStateEl) {
+    return;
+  }
   await initActiveTabContext();
   await refreshCurrentWatchState();
 }
 
 init().catch(() => {
-  pageStateEl.textContent = "Failed to initialize popup.";
+  if (pageStateEl) {
+    pageStateEl.textContent = "Failed to initialize popup.";
+  }
   setWorkflowTitle("No workflow selected", false);
   setWorkflowControls(false, "Enable notifications");
 });
