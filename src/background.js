@@ -1,7 +1,14 @@
 /* global ArgoNotifierShared, chrome */
 "use strict";
 
-const shared = ArgoNotifierShared;
+if (typeof ArgoNotifierShared === "undefined" && typeof importScripts === "function") {
+  importScripts("lib/workflow.js");
+}
+
+const shared = globalThis.ArgoNotifierShared;
+if (!shared) {
+  throw new Error("Failed to initialize shared workflow helpers in background worker.");
+}
 
 const ALARM_NAME = "argo-workflow-notifier-poll";
 const ALARM_PERIOD_MINUTES = 0.5;
