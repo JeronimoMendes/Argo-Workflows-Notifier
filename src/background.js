@@ -329,6 +329,33 @@ async function disableWatch(payload) {
   return removeWatch(watch.watchId);
 }
 
+function normalizeDisplayName(value, fallback) {
+  const text = String(value || "").trim();
+  if (text) {
+    return text;
+  }
+  return String(fallback || "").trim() || "Unnamed workflow";
+}
+
+async function renameWatch(payload) {
+  await ensureHydrated();
+  if (!payload || !payload.watchId) {
+    return null;
+  }
+  const watch = watches.get(payload.watchId);
+  if (!watch) {
+    return null;
+  }
+
+  const nextWatch = {
+    ...watch,
+    displayName: normalizeDisplayName(payload.displayName, watch.workflowKey)
+  };
+  watches.set(nextWatch.watchId, nextWatch);
+  await persistWatches();
+  return nextWatch;
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   hydrateWatches().catch(() => {});
 });
@@ -386,6 +413,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "WATCH_DISABLE") {
     disableWatch(message)
       .then((removed) => sendResponse({ ok: true, removed }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "WATCH_RENAME") {
+    renameWatch(message)
+      .then((watch) => sendResponse({ ok: true, watch }))
       .catch((error) => sendResponse({ ok: false, error: String(error) }));
     return true;
   }

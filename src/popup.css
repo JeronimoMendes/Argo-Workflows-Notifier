@@ -38,6 +38,28 @@ body {
   font-weight: 600;
 }
 
+.workflow-name-primary {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #162032;
+  padding: 0;
+  text-align: left;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-name-primary:not([disabled]) {
+  cursor: pointer;
+}
+
+.workflow-name-primary:not([disabled]):hover {
+  text-decoration: underline;
+}
+
 button {
   border: none;
   border-radius: 8px;
@@ -92,6 +114,27 @@ button[disabled] {
 .watch-name {
   font-size: 13px;
   font-weight: 600;
+}
+
+.watch-name-btn {
+  border: 0;
+  background: transparent;
+  color: #162032;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-name-btn:hover {
+  text-decoration: underline;
 }
 
 .watch-meta {
