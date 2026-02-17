@@ -25,6 +25,30 @@ async function tabMessage(tabId, message) {
   }
 }
 
+async function ensureContentScriptInjected(tab) {
+  if (!tab || typeof tab.id !== "number") {
+    return false;
+  }
+  if (!shared.isWorkflowRunUrl(tab.url || "")) {
+    return false;
+  }
+
+  const existing = await tabMessage(tab.id, { type: "GET_WORKFLOW_CONTEXT" });
+  if (existing && existing.ok) {
+    return true;
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["src/lib/workflow.js", "src/content.js"]
+    });
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function setWorkflowControls(enabled, buttonText) {
   toggleWatchBtn.disabled = !enabled;
   toggleWatchBtn.textContent = buttonText;
@@ -100,6 +124,8 @@ async function initActiveTabContext() {
     setWorkflowControls(false, "Enable notifications");
     return;
   }
+
+  await ensureContentScriptInjected(activeTab);
 
   const context = await tabMessage(activeTab.id, { type: "GET_WORKFLOW_CONTEXT" });
   if (!context || !context.ok) {

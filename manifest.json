@@ -3,7 +3,7 @@
   "name": "Argo Workflow Notifier",
   "version": "0.1.0",
   "description": "Toggle browser notifications for Argo workflow runs and get alerted on completion.",
-  "permissions": ["tabs", "storage", "notifications", "alarms"],
+  "permissions": ["tabs", "storage", "notifications", "alarms", "scripting"],
   "host_permissions": ["*://*/workflows/*"],
   "background": {
     "service_worker": "src/background.js"

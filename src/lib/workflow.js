@@ -108,7 +108,7 @@
     }
     try {
       const parsed = new URL(url);
-      return /^\/workflows\/[^/]+\/[^/?#]+/.test(parsed.pathname);
+      return /\/workflows\/[^/]+\/[^/?#]+/.test(parsed.pathname);
     } catch (_error) {
       return false;
     }
@@ -120,11 +120,12 @@
     }
     const parsed = new URL(url);
     const segments = parsed.pathname.split("/").filter(Boolean);
-    if (segments.length < 3) {
+    const workflowsIndex = segments.findIndex((segment) => segment === "workflows");
+    if (workflowsIndex < 0 || segments.length < workflowsIndex + 3) {
       return null;
     }
-    const namespace = segments[1];
-    const workflowName = segments[2];
+    const namespace = segments[workflowsIndex + 1];
+    const workflowName = segments[workflowsIndex + 2];
     return {
       namespace,
       workflowName,
