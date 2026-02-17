@@ -73,3 +73,40 @@ test("extractPhaseFromDocument prefers status selectors then body status line", 
   };
   assert.equal(shared.extractPhaseFromDocument(fakeDocBodyOnly), "succeeded");
 });
+
+test("extractPhaseFromDocument reads workflow phase from argo graph root node", () => {
+  const workflowName = "ingestion--galp--ictio-alcazar-bq774";
+
+  const makeTitleNode = (titleText, className) => ({
+    textContent: titleText,
+    parentElement: {
+      querySelector(selector) {
+        if (selector === "g.node" || selector === ".node") {
+          return { className: { baseVal: className } };
+        }
+        return null;
+      }
+    }
+  });
+
+  const fakeDoc = {
+    querySelectorAll(selector) {
+      if (selector === ".graph svg title") {
+        return [
+          makeTitleNode(workflowName + "-123456789 (parametrize)", "node Succeeded "),
+          makeTitleNode(workflowName + " (" + workflowName + ")", "node Running "),
+          makeTitleNode("artifact:azure:.../conventions.tgz", "node Artifact ")
+        ];
+      }
+      return [];
+    },
+    body: {
+      innerText: ""
+    }
+  };
+
+  assert.equal(
+    shared.extractPhaseFromDocument(fakeDoc, { workflowName }),
+    "running"
+  );
+});

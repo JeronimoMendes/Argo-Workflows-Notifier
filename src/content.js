@@ -5,12 +5,20 @@ const shared = ArgoNotifierShared;
 
 function getWorkflowDisplayName(parsed) {
   const titleElement =
+    document.querySelector(".top-bar__breadcrumbs-last-item") ||
     document.querySelector("[data-testid='page-title']") ||
     document.querySelector("h1") ||
     document.querySelector("[class*='workflow'][class*='title']");
   const titleText = titleElement ? String(titleElement.textContent || "").trim() : "";
   if (titleText) {
     return titleText;
+  }
+  const pageTitle = String(document.title || "").trim();
+  if (pageTitle) {
+    const split = pageTitle.split(" / ");
+    if (split[0] && split[0].trim()) {
+      return split[0].trim();
+    }
   }
   return parsed.workflowName;
 }
@@ -36,7 +44,9 @@ function getStatusPayload() {
     return { ok: false, reason: "not_workflow_run_page" };
   }
 
-  const phase = shared.extractPhaseFromDocument(document);
+  const phase = shared.extractPhaseFromDocument(document, {
+    workflowName: parsed.workflowName
+  });
   return {
     ok: true,
     workflowKey: parsed.workflowKey,

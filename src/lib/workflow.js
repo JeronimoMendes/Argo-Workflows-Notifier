@@ -31,10 +31,8 @@
     "[data-test='workflow-phase']",
     "[data-test='workflow-status']",
     "[aria-label='Workflow Status']",
-    "[class*='workflow'][class*='status']",
-    "[class*='workflow'][class*='phase']",
-    "[class*='status-badge']",
-    "[class*='phase-badge']"
+    ".status-badge .status",
+    ".status-badge"
   ];
 
   function cleanText(value) {
@@ -146,6 +144,89 @@
     return String(element.innerText || element.textContent || "");
   }
 
+  function getClassNameFromElement(element) {
+    if (!element) {
+      return "";
+    }
+    const className = element.className;
+    if (typeof className === "string") {
+      return className;
+    }
+    if (className && typeof className.baseVal === "string") {
+      return className.baseVal;
+    }
+    return "";
+  }
+
+  function queryAll(doc, selector) {
+    if (!doc || typeof doc.querySelectorAll !== "function") {
+      return [];
+    }
+    return Array.from(doc.querySelectorAll(selector));
+  }
+
+  function extractPhaseFromNodeClass(element) {
+    const classes = getClassNameFromElement(element)
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    for (const cls of classes) {
+      const phase = normalizePhase(cls);
+      if (phase !== "unknown") {
+        return phase;
+      }
+    }
+    return "unknown";
+  }
+
+  function parseWorkflowDisplayNameFromNodeTitle(nodeTitle) {
+    const text = String(nodeTitle || "").trim();
+    const match = text.match(/\(([^()]+)\)\s*$/);
+    return match && match[1] ? match[1].trim() : "";
+  }
+
+  function findPhaseFromTitleNode(titleNode) {
+    if (!titleNode || !titleNode.parentElement) {
+      return "unknown";
+    }
+
+    const parent = titleNode.parentElement;
+    const node = parent.querySelector("g.node") || parent.querySelector(".node");
+    return extractPhaseFromNodeClass(node);
+  }
+
+  function extractPhaseFromArgoGraph(doc, workflowName) {
+    const titleNodes = queryAll(doc, ".graph svg title");
+    if (titleNodes.length === 0) {
+      return "unknown";
+    }
+
+    const rootTitleNode = titleNodes.find((titleNode) => {
+      const display = parseWorkflowDisplayNameFromNodeTitle(getTextFromElement(titleNode));
+      return Boolean(workflowName && display && display === workflowName);
+    });
+    if (rootTitleNode) {
+      const rootPhase = findPhaseFromTitleNode(rootTitleNode);
+      if (rootPhase !== "unknown") {
+        return rootPhase;
+      }
+    }
+
+    for (const titleNode of titleNodes) {
+      const titleText = getTextFromElement(titleNode);
+      if (/^artifact:/i.test(titleText)) {
+        continue;
+      }
+      const phase = findPhaseFromTitleNode(titleNode);
+      if (phase !== "unknown") {
+        return phase;
+      }
+    }
+
+    return "unknown";
+  }
+
   function extractStatusFromBodyText(doc) {
     const bodyText = getTextFromElement(doc && doc.body);
     if (!bodyText) {
@@ -162,19 +243,25 @@
     return "unknown";
   }
 
-  function extractPhaseFromDocument(doc) {
-    if (!doc || typeof doc.querySelectorAll !== "function") {
+  function extractPhaseFromDocument(doc, options) {
+    if (!doc) {
       return "unknown";
     }
+    const workflowName = options && options.workflowName ? options.workflowName : "";
 
     for (const selector of STATUS_SELECTORS) {
-      const nodes = doc.querySelectorAll(selector);
+      const nodes = queryAll(doc, selector);
       for (const node of nodes) {
         const phase = normalizePhase(getTextFromElement(node));
         if (phase !== "unknown") {
           return phase;
         }
       }
+    }
+
+    const graphPhase = extractPhaseFromArgoGraph(doc, workflowName);
+    if (graphPhase !== "unknown") {
+      return graphPhase;
     }
 
     return extractStatusFromBodyText(doc);
@@ -184,6 +271,7 @@
     STATUS_SELECTORS,
     buildWatchId,
     evaluateWatchObservation,
+    extractPhaseFromArgoGraph,
     extractPhaseFromDocument,
     getOutcomeForPhase,
     isTerminalPhase,
