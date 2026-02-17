@@ -5,6 +5,7 @@ const shared = ArgoNotifierShared;
 
 const pageStateEl = document.getElementById("page-state");
 const workflowNameEl = document.getElementById("workflow-name");
+const workflowNameLabelEl = document.getElementById("workflow-name-label");
 const toggleWatchBtn = document.getElementById("toggle-watch");
 const watchListEl = document.getElementById("watch-list");
 const emptyStateEl = document.getElementById("empty-state");
@@ -60,8 +61,9 @@ function setWorkflowControls(enabled, buttonText) {
 }
 
 function setWorkflowTitle(title, isRenameEnabled) {
-  workflowNameEl.textContent = title || "No workflow selected";
+  workflowNameLabelEl.textContent = title || "No workflow selected";
   workflowNameEl.disabled = !isRenameEnabled;
+  workflowNameEl.classList.toggle("rename-enabled", isRenameEnabled);
   workflowNameEl.title = isRenameEnabled
     ? "Click to rename this watched workflow"
     : "";

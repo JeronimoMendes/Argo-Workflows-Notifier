@@ -39,7 +39,9 @@ body {
 }
 
 .workflow-name-primary {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   border: 0;
   background: transparent;
@@ -58,6 +60,18 @@ body {
 
 .workflow-name-primary:not([disabled]):hover {
   text-decoration: underline;
+}
+
+.workflow-name-icon {
+  font-size: 12px;
+  color: #667389;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.workflow-name-primary.rename-enabled .workflow-name-icon {
+  opacity: 1;
+  color: #0459d9;
 }
 
 button {
