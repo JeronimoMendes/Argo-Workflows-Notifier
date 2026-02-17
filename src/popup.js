@@ -12,9 +12,14 @@ const emptyStateEl = document.getElementById("empty-state");
 let activeTab = null;
 let activeContext = null;
 let currentWatch = null;
+let watchIndex = new Map();
 
-function runtimeMessage(message) {
-  return chrome.runtime.sendMessage(message);
+async function runtimeMessage(message) {
+  try {
+    return await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
 }
 
 async function tabMessage(tabId, message) {
@@ -54,6 +59,14 @@ function setWorkflowControls(enabled, buttonText) {
   toggleWatchBtn.textContent = buttonText;
 }
 
+function setWorkflowTitle(title, isRenameEnabled) {
+  workflowNameEl.textContent = title || "No workflow selected";
+  workflowNameEl.disabled = !isRenameEnabled;
+  workflowNameEl.title = isRenameEnabled
+    ? "Click to rename this watched workflow"
+    : "";
+}
+
 function formatWatchMeta(watch) {
   const phase = watch.lastPhase && watch.lastPhase !== "unknown" ? watch.lastPhase : "waiting";
   return watch.workflowKey + " | last: " + phase;
@@ -74,9 +87,12 @@ function renderWatchList(watches) {
     const main = document.createElement("div");
     main.className = "watch-main";
 
-    const name = document.createElement("span");
-    name.className = "watch-name";
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "watch-name-btn";
     name.textContent = watch.displayName;
+    name.title = "Open workflow tab";
+    name.dataset.watchId = watch.watchId;
 
     const stopBtn = document.createElement("button");
     stopBtn.type = "button";
@@ -100,6 +116,7 @@ function renderWatchList(watches) {
 async function refreshWatches() {
   const result = await runtimeMessage({ type: "WATCH_LIST" });
   const watches = result && result.ok ? result.watches || [] : [];
+  watchIndex = new Map(watches.map((watch) => [watch.watchId, watch]));
   renderWatchList(watches);
   if (activeTab) {
     currentWatch = watches.find((watch) => watch.tabId === activeTab.id) || null;
@@ -113,14 +130,14 @@ async function initActiveTabContext() {
   activeTab = tabs && tabs[0] ? tabs[0] : null;
   if (!activeTab) {
     pageStateEl.textContent = "No active tab.";
-    workflowNameEl.textContent = "No workflow selected";
+    setWorkflowTitle("No workflow selected", false);
     setWorkflowControls(false, "Enable notifications");
     return;
   }
 
   if (!shared.isWorkflowRunUrl(activeTab.url || "")) {
     pageStateEl.textContent = "Open an Argo workflow run page.";
-    workflowNameEl.textContent = "No workflow selected";
+    setWorkflowTitle("No workflow selected", false);
     setWorkflowControls(false, "Enable notifications");
     return;
   }
@@ -130,23 +147,26 @@ async function initActiveTabContext() {
   const context = await tabMessage(activeTab.id, { type: "GET_WORKFLOW_CONTEXT" });
   if (!context || !context.ok) {
     pageStateEl.textContent = "Could not read workflow page.";
-    workflowNameEl.textContent = "No workflow selected";
+    setWorkflowTitle("No workflow selected", false);
     setWorkflowControls(false, "Enable notifications");
     return;
   }
 
   activeContext = context;
-  workflowNameEl.textContent = context.displayName || context.workflowKey;
+  setWorkflowTitle(context.displayName || context.workflowKey, false);
   pageStateEl.textContent = "Workflow page detected.";
 }
 
 async function refreshCurrentWatchState() {
   await refreshWatches();
   if (currentWatch) {
+    setWorkflowTitle(currentWatch.displayName || currentWatch.workflowKey, true);
     setWorkflowControls(true, "Disable notifications");
   } else if (activeContext && activeTab) {
+    setWorkflowTitle(activeContext.displayName || activeContext.workflowKey, false);
     setWorkflowControls(true, "Enable notifications");
   } else {
+    setWorkflowTitle("No workflow selected", false);
     setWorkflowControls(false, "Enable notifications");
   }
 }
@@ -173,26 +193,84 @@ async function toggleWatch() {
   await refreshCurrentWatchState();
 }
 
+async function renameWatchWithPrompt(watch) {
+  if (!watch || !watch.watchId) {
+    return;
+  }
+  const nextName = prompt(
+    "Rename watched workflow",
+    watch.displayName || watch.workflowKey
+  );
+  if (nextName === null) {
+    return;
+  }
+  const trimmed = nextName.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  const result = await runtimeMessage({
+    type: "WATCH_RENAME",
+    watchId: watch.watchId,
+    displayName: trimmed
+  });
+  if (!result || !result.ok || !result.watch) {
+    pageStateEl.textContent = "Rename failed. Refresh extension and try again.";
+    return;
+  }
+
+  pageStateEl.textContent = "Workflow page detected.";
+  await refreshCurrentWatchState();
+}
+
 watchListEl.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return;
   }
-  if (!target.classList.contains("stop-btn")) {
+
+  if (target.classList.contains("stop-btn")) {
+    const watchId = target.dataset.watchId;
+    if (!watchId) {
+      return;
+    }
+    await runtimeMessage({ type: "WATCH_DISABLE", watchId });
+    await refreshCurrentWatchState();
     return;
   }
-  const watchId = target.dataset.watchId;
-  if (!watchId) {
-    return;
+
+  if (target.classList.contains("watch-name-btn")) {
+    const watchId = target.dataset.watchId;
+    if (!watchId) {
+      return;
+    }
+    const watch = watchIndex.get(watchId);
+    if (!watch) {
+      return;
+    }
+    try {
+      const tab = await chrome.tabs.update(watch.tabId, { active: true });
+      if (tab && typeof tab.windowId === "number") {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
+      window.close();
+    } catch (_error) {
+      pageStateEl.textContent = "Could not open workflow tab.";
+    }
   }
-  await runtimeMessage({ type: "WATCH_DISABLE", watchId });
-  await refreshCurrentWatchState();
 });
 
 toggleWatchBtn.addEventListener("click", () => {
   toggleWatch().catch(() => {
     toggleWatchBtn.disabled = false;
   });
+});
+
+workflowNameEl.addEventListener("click", async () => {
+  if (!currentWatch) {
+    return;
+  }
+  await renameWatchWithPrompt(currentWatch);
 });
 
 async function init() {
@@ -202,5 +280,6 @@ async function init() {
 
 init().catch(() => {
   pageStateEl.textContent = "Failed to initialize popup.";
+  setWorkflowTitle("No workflow selected", false);
   setWorkflowControls(false, "Enable notifications");
 });
