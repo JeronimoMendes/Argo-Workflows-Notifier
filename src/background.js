@@ -1,13 +1,97 @@
-/* global ArgoNotifierShared, chrome */
+/* global chrome */
 "use strict";
 
-if (typeof ArgoNotifierShared === "undefined" && typeof importScripts === "function") {
-  importScripts("lib/workflow.js");
+const PHASE_ALIASES = new Map([
+  ["succeeded", "succeeded"],
+  ["success", "succeeded"],
+  ["completed", "succeeded"],
+  ["failed", "failed"],
+  ["failure", "failed"],
+  ["error", "error"],
+  ["errored", "error"],
+  ["pending", "pending"],
+  ["running", "running"],
+  ["inprogress", "running"],
+  ["in_progress", "running"],
+  ["unknown", "unknown"]
+]);
+
+const TERMINAL_SUCCESS = new Set(["succeeded"]);
+const TERMINAL_FAILURE = new Set(["failed", "error"]);
+
+function cleanText(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
-const shared = globalThis.ArgoNotifierShared;
-if (!shared) {
-  throw new Error("Failed to initialize shared workflow helpers in background worker.");
+function normalizePhase(value) {
+  const raw = cleanText(value);
+  if (!raw) {
+    return "unknown";
+  }
+  const compact = raw.replace(/\s+/g, "");
+  if (PHASE_ALIASES.has(compact)) {
+    return PHASE_ALIASES.get(compact);
+  }
+  if (/succeed/.test(raw)) {
+    return "succeeded";
+  }
+  if (/fail/.test(raw)) {
+    return "failed";
+  }
+  if (/error/.test(raw)) {
+    return "error";
+  }
+  if (/running/.test(raw)) {
+    return "running";
+  }
+  if (/pending|queued/.test(raw)) {
+    return "pending";
+  }
+  return "unknown";
+}
+
+function getOutcomeForPhase(phase) {
+  if (TERMINAL_SUCCESS.has(phase)) {
+    return "success";
+  }
+  if (TERMINAL_FAILURE.has(phase)) {
+    return "failure";
+  }
+  return null;
+}
+
+function evaluateWatchObservation(watch, observedPhase, observedAt) {
+  const phase = normalizePhase(observedPhase);
+  const nextWatch = {
+    ...watch,
+    lastPhase: phase,
+    lastCheckedAt: observedAt || Date.now()
+  };
+  const outcome = getOutcomeForPhase(phase);
+  if (!outcome) {
+    return { nextWatch, isTerminal: false, shouldNotify: false, outcome: null };
+  }
+  const shouldNotify =
+    (outcome === "success" && Boolean(watch.notifyOnSuccess)) ||
+    (outcome === "failure" && Boolean(watch.notifyOnFailure));
+
+  return { nextWatch, isTerminal: true, shouldNotify, outcome };
+}
+
+function isWorkflowRunUrl(url) {
+  if (!url) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return /^\/workflows\/[^/]+\/[^/?#]+/.test(parsed.pathname);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function buildWatchId(tabId, workflowKey) {
+  return String(tabId) + ":" + String(workflowKey);
 }
 
 const ALARM_NAME = "argo-workflow-notifier-poll";
@@ -85,7 +169,7 @@ async function pruneInvalidWatches() {
   for (const [watchId, watch] of watches.entries()) {
     try {
       const tab = await chrome.tabs.get(watch.tabId);
-      if (!tab || !shared.isWorkflowRunUrl(tab.url || "")) {
+      if (!tab || !isWorkflowRunUrl(tab.url || "")) {
         watches.delete(watchId);
         changed = true;
       }
@@ -120,7 +204,7 @@ async function sendWorkflowNotification(watch, outcome) {
 async function checkOneWatch(watchId, watch) {
   try {
     const tab = await chrome.tabs.get(watch.tabId);
-    if (!tab || !shared.isWorkflowRunUrl(tab.url || "")) {
+    if (!tab || !isWorkflowRunUrl(tab.url || "")) {
       watches.delete(watchId);
       return true;
     }
@@ -141,7 +225,7 @@ async function checkOneWatch(watchId, watch) {
       return true;
     }
 
-    const evaluation = shared.evaluateWatchObservation(
+    const evaluation = evaluateWatchObservation(
       watch,
       response.phase,
       response.observedAt || Date.now()
@@ -210,7 +294,7 @@ async function getWatchForTab(tabId) {
 
 async function enableWatch(payload) {
   await ensureHydrated();
-  const watchId = shared.buildWatchId(payload.tabId, payload.workflowKey);
+  const watchId = buildWatchId(payload.tabId, payload.workflowKey);
   const now = Date.now();
 
   const watch = {
@@ -268,7 +352,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     return;
   }
   const nextUrl = changeInfo.url || (tab && tab.url) || "";
-  if (nextUrl && !shared.isWorkflowRunUrl(nextUrl)) {
+  if (nextUrl && !isWorkflowRunUrl(nextUrl)) {
     removeWatchesForTab(tabId).catch(() => {});
   }
 });
