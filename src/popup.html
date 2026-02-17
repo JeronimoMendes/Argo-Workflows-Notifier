@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Argo Notifier</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup-header">
+        <h1>Argo Notifier</h1>
+        <p id="page-state" class="muted">Loading current tab...</p>
+      </header>
+
+      <section class="card">
+        <p id="workflow-name" class="workflow-name">No workflow selected</p>
+        <button id="toggle-watch" type="button" disabled>Enable notifications</button>
+        <p class="hint">You will be notified once when this workflow succeeds or fails.</p>
+      </section>
+
+      <section class="card">
+        <h2>Active Watches</h2>
+        <ul id="watch-list" class="watch-list"></ul>
+        <p id="empty-state" class="muted">No active watches.</p>
+      </section>
+    </main>
+    <script src="lib/workflow.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
