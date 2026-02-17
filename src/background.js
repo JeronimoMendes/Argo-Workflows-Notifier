@@ -210,8 +210,8 @@ async function createNotification(title, message) {
 async function sendWorkflowNotification(watch, outcome) {
   const title =
     outcome === "success"
-      ? "Argo workflow succeeded"
-      : "Argo workflow failed";
+      ? "Argo workflow succeeded 🟢"
+      : "Argo workflow failed 🔴";
   const message =
     outcome === "success"
       ? watch.displayName + " finished successfully."
