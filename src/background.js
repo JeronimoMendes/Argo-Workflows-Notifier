@@ -193,6 +193,7 @@ async function createNotification(title, message) {
       notificationId,
       {
         type: "basic",
+        requireInteraction: true,
         iconUrl,
         title,
         message
