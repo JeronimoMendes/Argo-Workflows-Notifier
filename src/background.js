@@ -523,5 +523,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "DEV_FIRE_NOTIFICATION") {
+    const outcome = message.outcome === "failure" ? "failure" : "success";
+    const fakeWatch = { displayName: message.displayName || "test-workflow-abc123" };
+    sendWorkflowNotification(fakeWatch, outcome)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   return false;
 });

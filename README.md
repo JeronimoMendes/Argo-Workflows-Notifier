@@ -60,6 +60,28 @@ Build extension package:
 npm run package:extension
 ```
 
+## Dev mode
+
+The popup exposes a dev panel for manually firing test notifications without needing a real watched workflow.
+
+**How to open the popup in dev mode:**
+
+1. Load the extension unpacked (see above).
+2. Find your extension ID on `chrome://extensions` (e.g. `abcdefghijklmnopqrstuvwxyz123456`).
+3. Navigate to the popup URL directly in a tab:
+   ```
+   chrome-extension://<extension-id>/src/popup.html?dev=1
+   ```
+
+A **Dev** section appears at the bottom of the popup with two buttons:
+
+| Button | What it does |
+|---|---|
+| Fire success notification | Sends a "workflow succeeded" notification immediately |
+| Fire failure notification | Sends a "workflow failed" notification immediately |
+
+The dev panel is invisible in normal popup usage — it only activates when the `?dev` query param is present.
+
 ## Disclaimer
 
 This project was "vibe coded" using tools such as OpenAI Codex and Claude Code.

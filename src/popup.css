@@ -173,3 +173,21 @@ button[disabled] {
   font-size: 11px;
   background: #bd2f2f;
 }
+
+.dev-panel {
+  border: 1px dashed #a0a8b8;
+  background: #f0f2f8;
+}
+
+.dev-panel h2 {
+  color: #6b7280;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dev-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

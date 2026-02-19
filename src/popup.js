@@ -308,6 +308,32 @@ if (workflowNameEl) {
   });
 }
 
+function initDevPanel() {
+  const devPanel = document.getElementById("dev-panel");
+  if (!devPanel) {
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("dev")) {
+    return;
+  }
+  devPanel.style.display = "";
+
+  const successBtn = document.getElementById("dev-notify-success");
+  const failureBtn = document.getElementById("dev-notify-failure");
+
+  if (successBtn) {
+    successBtn.addEventListener("click", () => {
+      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "success" }).catch(() => {});
+    });
+  }
+  if (failureBtn) {
+    failureBtn.addEventListener("click", () => {
+      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "failure" }).catch(() => {});
+    });
+  }
+}
+
 async function init() {
   if (
     !pageStateEl ||
@@ -319,6 +345,7 @@ async function init() {
   ) {
     return;
   }
+  initDevPanel();
   await initActiveTabContext();
   await refreshCurrentWatchState();
 }
