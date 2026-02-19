@@ -342,6 +342,16 @@ async function initSoundSettings() {
   });
 }
 
+async function populateDevTabSelect(select) {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    const option = document.createElement("option");
+    option.value = String(tab.id);
+    option.textContent = tab.title ? tab.title.slice(0, 60) : tab.url || String(tab.id);
+    select.appendChild(option);
+  }
+}
+
 function initDevPanel() {
   const devPanel = document.getElementById("dev-panel");
   if (!devPanel) {
@@ -353,17 +363,27 @@ function initDevPanel() {
   }
   devPanel.style.display = "";
 
+  const tabSelect = document.getElementById("dev-tab-select");
+  if (tabSelect) {
+    populateDevTabSelect(tabSelect).catch(() => {});
+  }
+
   const successBtn = document.getElementById("dev-notify-success");
   const failureBtn = document.getElementById("dev-notify-failure");
 
+  function selectedTabId() {
+    const val = tabSelect ? tabSelect.value : "";
+    return val ? Number(val) : undefined;
+  }
+
   if (successBtn) {
     successBtn.addEventListener("click", () => {
-      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "success" }).catch(() => {});
+      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "success", tabId: selectedTabId() }).catch(() => {});
     });
   }
   if (failureBtn) {
     failureBtn.addEventListener("click", () => {
-      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "failure" }).catch(() => {});
+      runtimeMessage({ type: "DEV_FIRE_NOTIFICATION", outcome: "failure", tabId: selectedTabId() }).catch(() => {});
     });
   }
 }

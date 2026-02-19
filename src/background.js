@@ -101,6 +101,7 @@ const ALARM_PERIOD_MINUTES = 0.5;
 
 let watches = new Map();
 let hydrated = false;
+const notificationTabMap = new Map();
 
 async function ensureHydrated() {
   if (hydrated) {
@@ -205,7 +206,7 @@ async function playNotificationSound() {
   chrome.runtime.sendMessage({ type: "play-notification-sound", volume: soundVolume });
 }
 
-async function createNotification(title, message) {
+async function createNotification(title, message, tabId) {
   const iconUrl = chrome.runtime.getURL("icons/icon128.png");
   const notificationId = "argo-watch-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
 
@@ -217,18 +218,36 @@ async function createNotification(title, message) {
         requireInteraction: true,
         iconUrl,
         title,
-        message
+        message,
+        buttons: [{ title: "Open workflow" }]
       },
       (createdId) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
           return;
         }
-        resolve(createdId || notificationId);
+        const id = createdId || notificationId;
+        if (tabId != null) notificationTabMap.set(id, tabId);
+        resolve(id);
       }
     );
   });
 }
+
+async function openNotificationTab(notificationId) {
+  const tabId = notificationTabMap.get(notificationId);
+  if (tabId == null) return;
+  try {
+    const tab = await chrome.tabs.update(tabId, { active: true });
+    if (tab?.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+  } catch (_) {
+    // tab may have been closed
+  }
+}
+
+chrome.notifications.onClicked.addListener((id) => openNotificationTab(id));
+chrome.notifications.onButtonClicked.addListener((id, _btnIdx) => openNotificationTab(id));
+chrome.notifications.onClosed.addListener((id) => notificationTabMap.delete(id));
 
 async function sendWorkflowNotification(watch, outcome) {
   const title = outcome === "success" ? "Argo workflow succeeded 🟢" : "Argo workflow failed 🔴";
@@ -236,7 +255,7 @@ async function sendWorkflowNotification(watch, outcome) {
     outcome === "success"
       ? watch.displayName + " finished successfully."
       : watch.displayName + " finished with errors.";
-  await createNotification(title, message);
+  await createNotification(title, message, watch.tabId);
   await playNotificationSound();
 }
 
@@ -547,7 +566,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === "DEV_FIRE_NOTIFICATION") {
     const outcome = message.outcome === "failure" ? "failure" : "success";
-    const fakeWatch = { displayName: message.displayName || "test-workflow-abc123" };
+    const fakeWatch = { displayName: message.displayName || "test-workflow-abc123", tabId: message.tabId ?? null };
     sendWorkflowNotification(fakeWatch, outcome)
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: String(error) }));

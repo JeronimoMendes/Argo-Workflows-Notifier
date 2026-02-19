@@ -231,6 +231,30 @@ button[disabled] {
   letter-spacing: 0.05em;
 }
 
+.dev-tab-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dev-label {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.dev-tab-select {
+  flex: 1;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #c9cfd9;
+  border-radius: 4px;
+  background: #fff;
+  color: #1a2035;
+  min-width: 0;
+}
+
 .dev-actions {
   display: flex;
   gap: 8px;
