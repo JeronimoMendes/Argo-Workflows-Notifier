@@ -174,6 +174,51 @@ button[disabled] {
   background: #bd2f2f;
 }
 
+.sound-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 0;
+}
+
+.sound-mute-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 4px;
+  color: #667389;
+  flex-shrink: 0;
+}
+
+.sound-mute-btn:hover {
+  background: #e8ecf5;
+}
+
+.sound-slider {
+  flex: 1;
+  height: 4px;
+  cursor: pointer;
+  accent-color: #0459d9;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.sound-slider-muted {
+  opacity: 0.35;
+}
+
+.volume-label {
+  font-size: 11px;
+  color: #667389;
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .dev-panel {
   border: 1px dashed #a0a8b8;
   background: #f0f2f8;

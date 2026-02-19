@@ -4,6 +4,9 @@
 const shared = ArgoNotifierShared;
 
 const pageStateEl = document.getElementById("page-state");
+const soundMuteBtnEl = document.getElementById("sound-mute-btn");
+const soundVolumeEl = document.getElementById("sound-volume");
+const volumeLabelEl = document.getElementById("volume-label");
 const workflowNameEl = document.getElementById("workflow-name");
 const workflowNameLabelEl = document.getElementById("workflow-name-label");
 const toggleWatchBtn = document.getElementById("toggle-watch");
@@ -308,6 +311,37 @@ if (workflowNameEl) {
   });
 }
 
+async function initSoundSettings() {
+  if (!soundMuteBtnEl || !soundVolumeEl || !volumeLabelEl) {
+    return;
+  }
+
+  const { soundMuted = false, soundVolume = 1 } = await chrome.storage.local.get([
+    "soundMuted",
+    "soundVolume"
+  ]);
+
+  let muted = soundMuted;
+  const pct = Math.round(soundVolume * 100);
+  soundVolumeEl.value = String(pct);
+  volumeLabelEl.textContent = pct + "%";
+  soundMuteBtnEl.textContent = muted ? "🔇" : "🔊";
+  soundVolumeEl.classList.toggle("sound-slider-muted", muted);
+
+  soundMuteBtnEl.addEventListener("click", async () => {
+    muted = !muted;
+    soundMuteBtnEl.textContent = muted ? "🔇" : "🔊";
+    soundVolumeEl.classList.toggle("sound-slider-muted", muted);
+    await chrome.storage.local.set({ soundMuted: muted });
+  });
+
+  soundVolumeEl.addEventListener("input", async () => {
+    const value = Number(soundVolumeEl.value);
+    volumeLabelEl.textContent = value + "%";
+    await chrome.storage.local.set({ soundVolume: value / 100 });
+  });
+}
+
 function initDevPanel() {
   const devPanel = document.getElementById("dev-panel");
   if (!devPanel) {
@@ -346,6 +380,7 @@ async function init() {
     return;
   }
   initDevPanel();
+  await initSoundSettings();
   await initActiveTabContext();
   await refreshCurrentWatchState();
 }

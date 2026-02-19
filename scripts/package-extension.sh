@@ -21,7 +21,7 @@ fi
 
 (
   cd "$ROOT_DIR"
-  npx crx3 -p "$KEY_PATH" -o "$CRX_PATH" -z "$ZIP_PATH" -- manifest.json src icons
+  npx crx3 -p "$KEY_PATH" -o "$CRX_PATH" -z "$ZIP_PATH" -- manifest.json src icons sounds
 )
 
 echo "Packed extension at: $CRX_PATH"

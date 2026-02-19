@@ -184,6 +184,27 @@ async function pruneInvalidWatches() {
   }
 }
 
+async function playNotificationSound() {
+  const { soundMuted = false, soundVolume = 1 } = await chrome.storage.local.get([
+    "soundMuted",
+    "soundVolume"
+  ]);
+  if (soundMuted) {
+    return;
+  }
+
+  const offscreenUrl = chrome.runtime.getURL("src/offscreen.html");
+  const existingContexts = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
+  if (existingContexts.length === 0) {
+    await chrome.offscreen.createDocument({
+      url: offscreenUrl,
+      reasons: ["AUDIO_PLAYBACK"],
+      justification: "Play notification sound"
+    });
+  }
+  chrome.runtime.sendMessage({ type: "play-notification-sound", volume: soundVolume });
+}
+
 async function createNotification(title, message) {
   const iconUrl = chrome.runtime.getURL("icons/icon128.png");
   const notificationId = "argo-watch-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
@@ -216,6 +237,7 @@ async function sendWorkflowNotification(watch, outcome) {
       ? watch.displayName + " finished successfully."
       : watch.displayName + " finished with errors.";
   await createNotification(title, message);
+  await playNotificationSound();
 }
 
 async function applyObservationToWatch(watchId, watch, phase, observedAt) {
